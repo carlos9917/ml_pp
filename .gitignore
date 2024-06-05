@@ -1,3 +1,8 @@
 .Rdata
 .Rhistory
 .ipynb_checkpoints
+*.dbf
+*.prj
+*.shp
+*.shx
+*.cpg
