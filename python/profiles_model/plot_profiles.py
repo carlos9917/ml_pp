@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import numpy as np
+import matplotlib.pyplot as plt
 import pandas as pd
 from datetime import datetime
 from datetime import datetime, timedelta
@@ -48,7 +49,7 @@ def create_parquet_from_profiles(timestamp_str, road_stretch, temp_profiles,data
 
     # Save to parquet file
     #output_file = f'road_temp_data/road_temp_{new_ts_str}.parquet'
-    output_file = os.path.join(data_path,f'road_temp_{new_ts_str}.parquet')
+    output_file = os.path.join(data_path,'road_temp_{new_ts_str}.parquet')
     df.to_parquet(output_file, index=False)
 
     return output_file
@@ -134,6 +135,67 @@ def process_file(filename):
 
     return road_stretch, stations, station_names, line_count, single_column_line, temp_profiles
 
+def plot_temperature_profiles(road_stretch, temp_profiles, date_str, num_profiles=10):
+    # Create depth layers (15 layers from 14 to 0)
+    #depths = np.arange(14, -1, -1)  # Changed to go from 14 to 0
+    depths = np.arange(15, 0, -1)  # Changed to go from 14 to 0
+
+    plt.figure(figsize=(10, 8))
+
+    # Plot each profile
+    for i in range(min(num_profiles, len(temp_profiles))):
+        profile = temp_profiles[i]
+        station = road_stretch[i]
+        plt.plot(profile,depths, label=f'Profile {station}', marker='o')
+    # Customize the plot
+    plt.ylabel('Layer Depth (cm)')
+    plt.xlabel('Temperature (C)')
+    hour = int(date_str[8:10]) - 2
+    plt.title(f'Temperature Profiles vs Depth on {date_str[0:8]} at {hour} UTC')
+    plt.legend()
+    plt.grid(True)
+
+    # Add minor gridlines
+    plt.grid(True, which='minor', linestyle=':', alpha=0.5)
+    plt.minorticks_on()
+
+    plt.show()
+
+def plot_temperature_selected(road_stretch, temp_profiles, date_str, indices):
+    # Create depth layers (15 layers from 14 to 0)
+    #depths = np.arange(14, -1, -1)  # Changed to go from 14 to 0
+    depths = np.arange(15, 0, -1)  # Changed to go from 14 to 0
+
+    plt.figure(figsize=(10, 8))
+
+    # Plot each profile
+    for i in indices:
+        profile = temp_profiles[i]
+        station = road_stretch[i]
+        plt.plot(profile,depths, label=f'Profile {station}', marker='o')
+    # Customize the plot
+    plt.ylabel('Layer Depth (cm)')
+    plt.xlabel('Temperature (C)')
+    hour = int(date_str[8:10]) - 2
+    plt.title(f'Temperature Profiles vs Depth on {date_str[0:8]} at {hour} UTC')
+    plt.legend()
+    plt.grid(True)
+
+    # Add minor gridlines
+    plt.grid(True, which='minor', linestyle=':', alpha=0.5)
+    plt.minorticks_on()
+    plt.show()
+
+
+def find_index_loop(lst, substring):
+    for i, item in enumerate(lst):
+        if substring in item:
+            return i
+    return -1  # or None
+
+
+
+
 ## Use the functions
 #filename = "fild8_2022022614.dummy"
 #filename = 'fild8_2022022614'
@@ -157,8 +219,23 @@ def main():
         #print("\nStation Information:")
         #for base_station, sensors in station_names.items():
         #    print(f"Station {base_station} has sensors: {sorted(sensors)}")
+    
+    #find a specific one 
+    # 0 136000   0
+    # 0 136001   0
+        idx1 = find_index_loop(road_stretch,"0-136000-0")
+        idx2 = find_index_loop(road_stretch,"0-136001-0")
+        idx1 = find_index_loop(road_stretch,"0-100001-0")
+        # Plot the first 10 profiles
+        #plot_temperature_profiles(road_stretch, temp_profiles,date_str,2)
+        #plot_temperature_profiles(road_stretch, temp_profiles,date_str,2)
+    
+        #optional: plot the stations
+        selection = [i for i in range(idx1,idx1+5)]
+        plot_temperature_selected(road_stretch, temp_profiles, date_str, selection)
+    
         #dump to parquet
-        create_parquet_from_profiles(date_str, road_stretch, temp_profiles,data_path)
+        #create_parquet_from_profiles(date_str, road_stretch, temp_profiles,data_path)
      
     except FileNotFoundError:
         print(f"File {filename} not found. Please check the filename and path.")
