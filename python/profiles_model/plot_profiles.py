@@ -161,18 +161,24 @@ def plot_temperature_profiles(road_stretch, temp_profiles, date_str, num_profile
 
     plt.show()
 
-def plot_temperature_selected(road_stretch, temp_profiles, date_str, indices):
+def plot_temperature_selected(temp_profiles, date_str, stations):
+    """
+    plot temperature profiles individually
+    """
     # Create depth layers (15 layers from 14 to 0)
     #depths = np.arange(14, -1, -1)  # Changed to go from 14 to 0
     depths = np.arange(15, 0, -1)  # Changed to go from 14 to 0
+    depths = np.arange(-15, 0, 1)  # Changed to go from 14 to 0
+    #depths = np.arange(0,15)  # Changed to go from 14 to 0
 
     plt.figure(figsize=(10, 8))
 
     # Plot each profile
-    for i in indices:
-        profile = temp_profiles[i]
-        station = road_stretch[i]
-        plt.plot(profile,depths, label=f'Profile {station}', marker='o')
+    for i in stations:
+        profile = temp_profiles[temp_profiles.station_id == i]
+        depths = [-i for i in range(14,-1,-1)]
+        temps = [profile[f"depth_{i}"].values[0] for i in range(14,-1,-1)]
+        plt.plot(temps,depths, label=f'Profile {i}', marker='o')
     # Customize the plot
     plt.ylabel('Layer Depth (cm)')
     plt.xlabel('Temperature (C)')
@@ -184,63 +190,53 @@ def plot_temperature_selected(road_stretch, temp_profiles, date_str, indices):
     # Add minor gridlines
     plt.grid(True, which='minor', linestyle=':', alpha=0.5)
     plt.minorticks_on()
+    plt.ylim(-15,0)
     plt.show()
 
+def plot_temperature_all(temp_profiles, date_str, station):
+    """
+    plot all temperatures for given station and day
+    """
+    plt.figure(figsize=(10, 8))
 
-def find_index_loop(lst, substring):
-    for i, item in enumerate(lst):
-        if substring in item:
-            return i
-    return -1  # or None
+    # Plot  profile for all times
+    profiles = temp_profiles[temp_profiles.station_id == station]
+    depths = [-i for i in range(14,-1,-1)]
+    for ts in profiles.timestamp:
+        profile = profiles[profiles.timestamp == ts]
+        temps = [profile[f"depth_{i}"].values[0] for i in range(14,-1,-1)]
+        plt.plot(temps,depths, label=f'Profile at {ts}', marker='o')
+    # Customize the plot
+    plt.ylabel('Layer Depth (cm)')
+    plt.xlabel('Temperature (C)')
+    #hour = int(date_str[8:10]) - 2
+    #plt.title(f'Temperature Profiles vs Depth on {date_str[0:8]} at {hour} UTC')
+    plt.title(f'Temperature Profiles vs Depth on {date_str[0:8]}')
+    plt.legend()
+    plt.grid(True)
 
-
-
-
-## Use the functions
-#filename = "fild8_2022022614.dummy"
-#filename = 'fild8_2022022614'
-#filename = "fild8_2024050105"
+    # Add minor gridlines
+    plt.grid(True, which='minor', linestyle=':', alpha=0.5)
+    plt.minorticks_on()
+    plt.ylim(-15,0)
+    plt.show()
 def main():
+    #This path is in DMI. Will work only if connected via vpn
     data_path = "/data/projects/glatmodel/obs/fild8/road_profiles"
+    data_path = "/data/projects/glatmodel/obs/fild8/road_temp_daily"
+
     filename = sys.argv[1]
-    try:
-        print(f"Processing {filename}")
-        date_str = filename.split("_")[-1]
-        hour = date_str[8:10]
-        road_stretch, stations, station_names, count, single_col_line, temp_profiles = process_file(filename)
-        print(f"Number of temperature profiles found: {len(temp_profiles)}")
-        print(f"Number of station  names found: {len(station_names)}")
-        print(f"Station data starts on lin {single_col_line}")
-        print(count)
-        total_stretch = single_col_line - 2 #ie, subtract first line and the line before
-        print(f"Total number of stretches: {total_stretch}")
-        print(len(stations))
-        # Print station information
-        #print("\nStation Information:")
-        #for base_station, sensors in station_names.items():
-        #    print(f"Station {base_station} has sensors: {sorted(sensors)}")
-    
+    date_str = filename.split("_")[-1]
+    filename = os.path.join(data_path,filename)
     #find a specific one 
     # 0 136000   0
     # 0 136001   0
-        idx1 = find_index_loop(road_stretch,"0-136000-0")
-        idx2 = find_index_loop(road_stretch,"0-136001-0")
-        idx1 = find_index_loop(road_stretch,"0-100001-0")
-        # Plot the first 10 profiles
-        #plot_temperature_profiles(road_stretch, temp_profiles,date_str,2)
-        #plot_temperature_profiles(road_stretch, temp_profiles,date_str,2)
+    temp_profiles = pd.read_parquet(filename)
+    stations = ["0-136000-0","0-136001-0","0-100001-0"]
+    #plot_temperature_selected(temp_profiles, date_str, stations)
+    station = "0-100001-0"
+    plot_temperature_all(temp_profiles, date_str, station)
     
-        #optional: plot the stations
-        selection = [i for i in range(idx1,idx1+5)]
-        plot_temperature_selected(road_stretch, temp_profiles, date_str, selection)
-    
-        #dump to parquet
-        #create_parquet_from_profiles(date_str, road_stretch, temp_profiles,data_path)
-     
-    except FileNotFoundError:
-        print(f"File {filename} not found. Please check the filename and path.")
-    except Exception as e:
-        print(f"An error occurred: {str(e)}")
     
 if __name__=="__main__":
     main()
