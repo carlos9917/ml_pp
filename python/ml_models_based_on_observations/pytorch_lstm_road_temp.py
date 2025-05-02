@@ -222,11 +222,15 @@ if df is None or len(df) == 0:
 print(f"Loaded {len(df)} total records")
 
 # Drop rows with missing values in key columns
-df_cleaned = df[["valid_dttm", "SID", "lat", "lon", "TROAD", "T2m"]].dropna()
+df_cleaned = df[["valid_dttm", "SID", "lat", "lon", "TROAD", "T2m","Td2m"]].dropna()
 print(f"After cleaning: {len(df_cleaned)} records")
 
 # Convert Unix timestamp to datetime for better handling
 df_cleaned["dates"] = pd.to_datetime(df_cleaned["valid_dttm"], unit="s")
+
+select_station = 630200
+df_cleaned = df_cleaned[df_cleaned.SID == select_station]
+
 
 # Sort data chronologically
 df_cleaned = df_cleaned.sort_values("valid_dttm")
@@ -239,6 +243,7 @@ df_hourly = df_cleaned.groupby('hour').agg({
     'lon': 'mean',
     'TROAD': 'mean',
     'T2m': 'mean',
+    'Td2m': 'mean',
     'dates': 'first'
 }).reset_index()
 
@@ -257,8 +262,6 @@ train_size = int(len(df_hourly) * args.train_ratio)
 print(f"Hours to use for training out of {len(df_hourly)}: {train_size}")
 hours_pred = int(len(df_hourly)) - train_size
 print(f"Predicting: {hours_pred} hours")
-import pdb
-pdb.set_trace()
 
 # Ensure we have enough data for both training and testing
 if train_size < 48:  # At least 2 days for training
@@ -281,7 +284,8 @@ print(f"Training data: {len(train_df)} hours (~{train_days:.1f} days)")
 print(f"Test data: {len(test_df)} hours (~{test_days:.1f} days)")
 
 # Define features and target
-features = ['lat', 'lon', 'T2m']
+#features = ['lat', 'lon', 'T2m','TROAD',"Td2m"]
+features = ['T2m','TROAD',"Td2m"]
 target = 'TROAD'
 
 # Scale the data
