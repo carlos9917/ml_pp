@@ -66,7 +66,8 @@ def plot_temperature_all(df: pd.DataFrame, date_str: str, station: str,
         hour = pd.to_datetime(row["timestamp"]).hour
         color = cmap(norm(hour))
         temps = [row[f"depth_{i}"] for i in range(14, -1, -1)]
-        ax.plot(temps, depths_cm, marker="o", lw=2, color=color)
+        temps_deg = [ t - 273.15 for t in temps]
+        ax.plot(temps_deg, depths_cm, marker="o", lw=2, color=color)
     station_str = station.split("-")[1]
     ax.set(
         xlabel="Temperature (°C)",
@@ -99,7 +100,7 @@ def main() -> None:
                         help="How many random stations to plot")
     parser.add_argument("--stations", nargs="+",
                         help="Explicit list of station_id values to plot")
-    parser.add_argument("--data-path", default="/data/projects/glatmodel/obs/fild8/road_temp_daily",
+    parser.add_argument("--data-path", default="/data/projects/glatmodel/obs/fild8/road_profiles_daily",
                         help="Directory that holds road_temp_YYYYMMDD.parquet")
     parser.add_argument("--save-dir", default=".",
                         help="Directory to write PNG files")
