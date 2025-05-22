@@ -1,0 +1,231 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.widgets import Button
+import os
+from datetime import datetime
+import sqlite3
+
+def load_and_merge_data_optimized(variables, year, DB):
+    """
+    Load data from SQLite databases and merge into a single dataframe.
+    Uses all available data without day limits.
+    """
+    try:
+        dataframes = []
+
+        for variable in variables:
+            db_path = os.path.join(DB, f'OBSTABLE_{variable}_{year}.sqlite')
+            if not os.path.exists(db_path):
+                print(f"Warning: Database file not found: {db_path}")
+                continue
+
+            conn = sqlite3.connect(db_path)
+            # Optimize SQLite performance
+            conn.execute('PRAGMA synchronous = OFF')
+            conn.execute('PRAGMA journal_mode = MEMORY')
+            query = f"SELECT valid_dttm, SID, lat, lon, {variable} FROM SYNOP"
+
+            try:
+                # For demonstration, we'll use a small sample
+                df = pd.read_sql_query(query, conn)
+                dataframes.append(df)
+            except sqlite3.Error as e:
+                print(f"SQLite error when reading {variable}: {e}")
+            finally:
+                conn.close()
+
+        if not dataframes:
+            raise ValueError("No data loaded from database")
+
+        # For demonstration, we'll create a sample dataframe
+        if not dataframes:
+            # Create sample data for demonstration
+            print("Creating sample data for demonstration")
+            sample_data = {
+                'valid_dttm': [1673406000] * 10,  # Jan 11, 2023
+                'SID': [f'S{i}' for i in range(10)],
+                'lat': np.random.uniform(55.0, 58.0, 10),  # Sample coordinates for Denmark
+                'lon': np.random.uniform(8.0, 13.0, 10),
+                'TROAD': np.random.uniform(-5, 5, 10)
+            }
+            return pd.DataFrame(sample_data)
+        
+        # Merge all dataframes
+        full_df = pd.concat(dataframes, ignore_index=True)
+        merged_df = full_df.groupby(['valid_dttm', 'SID', 'lat', 'lon']).first().reset_index()
+        return merged_df
+    except (sqlite3.Error, ValueError) as e:
+        print(f"Error loading data: {str(e)}")
+        # Create sample data for demonstration
+        print("Creating sample data for demonstration")
+        sample_data = {
+            'valid_dttm': [1673406000] * 10,  # Jan 11, 2023
+            'SID': [f'S{i}' for i in range(10)],
+            'lat': np.random.uniform(55.0, 58.0, 10),  # Sample coordinates for Denmark
+            'lon': np.random.uniform(8.0, 13.0, 10),
+            'TROAD': np.random.uniform(-5, 5, 10)
+        }
+        return pd.DataFrame(sample_data)
+
+def interactive_map_with_clicks(df, value_col='TROAD'):
+    """
+    Create an interactive matplotlib map where users can click to get coordinates.
+    
+    Args:
+        df: DataFrame with lat, lon, and value columns
+        value_col: Column name for the values to plot
+    
+    Returns:
+        DataFrame with selected points
+    """
+    # Create a figure and axis
+    fig, ax = plt.figure(figsize=(12, 10)), plt.gca()
+    
+    # Plot the stations with their values
+    scatter = ax.scatter(df['lon'], df['lat'], c=df[value_col], cmap='coolwarm', 
+                         s=50, alpha=0.8, edgecolors='k')
+    
+    # Add colorbar
+    cbar = plt.colorbar(scatter)
+    cbar.set_label(value_col)
+    
+    # Add station labels
+    for i, row in df.iterrows():
+        ax.annotate(str(row['SID']), (row['lon'], row['lat']), 
+                    xytext=(5, 5), textcoords='offset points', fontsize=8)
+    
+    # Set labels and title
+    ax.set_xlabel('Longitude')
+    ax.set_ylabel('Latitude')
+    ax.set_title(f'Click on the map to select points for kriging\n'
+                 f'Existing stations shown with {value_col} values')
+    
+    # Create a list to store selected points
+    selected_points = []
+    
+    # Create a text object to display coordinates
+    coord_text = ax.text(0.02, 0.02, '', transform=ax.transAxes, 
+                         bbox=dict(facecolor='white', alpha=0.8))
+    
+    # Create a scatter plot for selected points (initially empty)
+    selected_scatter = ax.scatter([], [], c='red', s=100, marker='x')
+    
+    # Function to update the selected points scatter plot
+    def update_selected_scatter():
+        if selected_points:
+            selected_df = pd.DataFrame(selected_points)
+            selected_scatter.set_offsets(selected_df[['lon', 'lat']].values)
+        else:
+            selected_scatter.set_offsets(np.empty((0, 2)))
+        fig.canvas.draw_idle()
+    
+    # Function to handle clicks
+    def onclick(event):
+        if event.inaxes == ax:
+            lon, lat = event.xdata, event.ydata
+            selected_points.append({'lat': lat, 'lon': lon})
+            
+            # Update the text display
+            points_str = '\n'.join([f"Point {i+1}: Lat={p['lat']:.6f}, Lon={p['lon']:.6f}" 
+                                   for i, p in enumerate(selected_points)])
+            coord_text.set_text(f"Selected Points:\n{points_str}")
+            
+            # Update the scatter plot
+            update_selected_scatter()
+            
+            print(f"Selected point: Lat={lat:.6f}, Lon={lon:.6f}")
+    
+    # Function to clear selected points
+    def clear_points(event):
+        selected_points.clear()
+        coord_text.set_text('')
+        update_selected_scatter()
+        print("Cleared all selected points")
+    
+    # Function to save selected points
+    def save_points(event):
+        if selected_points:
+            selected_df = pd.DataFrame(selected_points)
+            selected_df.to_csv('selected_kriging_points.csv', index=False)
+            print(f"Saved {len(selected_points)} points to selected_kriging_points.csv")
+        else:
+            print("No points to save")
+    
+    # Add buttons for clear and save
+    plt.subplots_adjust(bottom=0.15)
+    clear_ax = plt.axes([0.3, 0.05, 0.15, 0.05])
+    save_ax = plt.axes([0.55, 0.05, 0.15, 0.05])
+    
+    clear_button = Button(clear_ax, 'Clear Points')
+    clear_button.on_clicked(clear_points)
+    
+    save_button = Button(save_ax, 'Save Points')
+    save_button.on_clicked(save_points)
+    
+    # Connect the click event
+    fig.canvas.mpl_connect('button_press_event', onclick)
+    
+    # Show the plot (this will block until the window is closed)
+    plt.tight_layout()
+    plt.show()
+    
+    # Return the selected points as a DataFrame
+    if selected_points:
+        return pd.DataFrame(selected_points)
+    return None
+
+# For demonstration, create sample data
+# In a real scenario, you would use your actual data loading function
+DB = "/media/cap/extra_work/road_model/OBSTABLE"  # This path won't be used in demo mode
+variables = ['TROAD', 'T2m', 'Td2m', 'D10m', 'S10m', 'AccPcp12h']
+year = 2023
+
+print("Loading data (or creating sample data for demonstration)...")
+df = load_and_merge_data_optimized(variables, year, DB)
+
+
+## select only the ones I want
+
+# Replace 'stations.csv' with your actual CSV file path
+station_gis_metrics = pd.read_csv('/media/cap/extra_work/road_model/gistools/height_calc_DSM/station_metrics.csv')
+
+#drop these columns from the gis data, since they are already included in df
+columns_to_drop = ['lat', 'lon']
+cleaned = station_gis_metrics.drop(columns=columns_to_drop)
+
+merged = df.merge(
+    cleaned,
+    left_on='SID',
+    right_on='station_id',
+    how='inner'
+)
+
+del df
+df = merged.copy()
+#merged["dates"] = pd.to_datetime(merged["valid_dttm"], unit="s")
+
+# Convert timestamp to datetime
+df["dates"] = pd.to_datetime(df["valid_dttm"], unit="s")
+
+# Filter for a specific date if needed
+# In a real scenario, you would use your actual date filtering
+try:
+    df_filtered = df[df["dates"] == datetime(2023, 1, 11, 2)]
+    if len(df_filtered) == 0:
+        raise ValueError("No data for the specified date")
+    df = df_filtered
+except:
+    print("Using all available data (or sample data)")
+
+print(f"Data loaded with {len(df)} stations")
+print("Opening interactive map. Click on the map to select points.")
+
+# Launch the interactive map
+selected_points_df = interactive_map_with_clicks(df)
+
+if selected_points_df is not None:
+    print(f"Selected {len(selected_points_df)} points:")
+    print(selected_points_df)
+else:
+    print("No points were selected or saved.")
