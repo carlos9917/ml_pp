@@ -85,7 +85,6 @@ def interactive_map_with_clicks(df, value_col='TROAD'):
     # Plot the stations with their values
     scatter = ax.scatter(df['lon'], df['lat'], c=df[value_col], cmap='coolwarm', 
                          s=50, alpha=0.8, edgecolors='k')
-    
     # Add colorbar
     cbar = plt.colorbar(scatter)
     cbar.set_label(value_col)
@@ -110,6 +109,9 @@ def interactive_map_with_clicks(df, value_col='TROAD'):
     
     # Create a scatter plot for selected points (initially empty)
     selected_scatter = ax.scatter([], [], c='red', s=100, marker='x')
+
+    # Initialize counter variable starting at 0
+    counter = 0  
     
     # Function to update the selected points scatter plot
     def update_selected_scatter():
@@ -122,9 +124,13 @@ def interactive_map_with_clicks(df, value_col='TROAD'):
     
     # Function to handle clicks
     def onclick(event):
+        #define a unique counter here starting the first time I click
+        nonlocal counter  # Use the counter variable from the outer scope
+        counter+=1
         if event.inaxes == ax:
             lon, lat = event.xdata, event.ydata
-            selected_points.append({'lat': lat, 'lon': lon})
+            dummy_station_name = "9999"+str(counter).zfill(2)
+            selected_points.append({'SID': dummy_station_name,'name':'dummy station','lon': lon, 'lat': lat})
             
             # Update the text display
             points_str = '\n'.join([f"Point {i+1}: Lat={p['lat']:.6f}, Lon={p['lon']:.6f}" 
@@ -147,7 +153,7 @@ def interactive_map_with_clicks(df, value_col='TROAD'):
     def save_points(event):
         if selected_points:
             selected_df = pd.DataFrame(selected_points)
-            selected_df.to_csv('selected_kriging_points.csv', index=False)
+            selected_df.to_csv('selected_kriging_points.csv', index=False,header=None)
             print(f"Saved {len(selected_points)} points to selected_kriging_points.csv")
         else:
             print("No points to save")
