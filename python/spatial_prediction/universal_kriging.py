@@ -117,7 +117,7 @@ new_points = pd.read_csv('/media/cap/extra_work/road_model/gistools/height_calc_
 print(f"Loaded {len(new_points)} new points for prediction")
 
 # Prepare coordinates for prediction
-pred_coords = new_points[['lon', 'easting']].values
+pred_coords = new_points[['lon', 'lat']].values
 
 # Prepare covariates for prediction (same as used in training)
 covariates = ['elev_m', 'slope_deg', 'aspect_deg']
@@ -159,6 +159,7 @@ def df_to_gdf(df, lon_col='lon', lat_col='lat', crs='EPSG:4326'):
 # Create GeoDataFrames
 gdf_original = df_to_gdf(df)
 gdf_predicted = df_to_gdf(new_points)
+
 
 # Add a column to identify the source
 gdf_original['source'] = 'Original'
@@ -207,74 +208,111 @@ ax.legend(handles=[orig_legend, pred_legend], fontsize=12, loc='lower right')
 ax.set_title('TROAD Values - All Stations', fontsize=16)
 ax.set_axis_off()
 
-# Optional: Add a continuous interpolated surface as background
-# Get bounds for interpolation grid
-xmin, ymin, xmax, ymax = gdf_combined.total_bounds
-grid_resolution = 200
+## Optional: Add a continuous interpolated surface as background
+## Get bounds for interpolation grid
+#xmin, ymin, xmax, ymax = gdf_combined.total_bounds
+#grid_resolution = 200
+#
+## Create a regular grid
+#x_grid = np.linspace(xmin, xmax, grid_resolution)
+#y_grid = np.linspace(ymin, ymax, grid_resolution)
+#x_mesh, y_mesh = np.meshgrid(x_grid, y_grid)
+#
+## Extract coordinates and values for interpolation
+#x = gdf_combined.geometry.x.values
+#y = gdf_combined.geometry.y.values
+#z = gdf_combined['TROAD'].values
+#
+## Interpolate temperature values
+#from scipy.interpolate import griddata
+#temp_grid = griddata((x, y), z, (x_mesh, y_mesh), method='cubic', fill_value=np.nan)
+#
+## Plot the interpolated surface under the points
+#ax.imshow(temp_grid, extent=[xmin, xmax, ymin, ymax], origin='lower',
+#          cmap=cmap, norm=norm, alpha=0.5, zorder=1)
+#
+#plt.tight_layout()
+#plt.savefig('troad_all_stations_map.png', dpi=300, bbox_inches='tight')
+#plt.show()
+#
+## Create a second visualization showing the difference between nearby points
+#fig2, ax2 = plt.subplots(figsize=(15, 12))
+#
+## Add basemap
+#ctx.add_basemap(ax2, source=ctx.providers.CartoDB.Positron, zorder=0)
+#
+## Plot original stations
+#gdf_original_merc = gdf_original.to_crs(epsg=3857)
+#gdf_original_merc.plot(column='TROAD', cmap=cmap, norm=norm,
+#                      markersize=80, marker='o', edgecolor='black',
+#                      linewidth=1, alpha=0.8, ax=ax2, zorder=2)
+#
+## Plot predicted stations
+#gdf_predicted_merc = gdf_predicted.to_crs(epsg=3857)
+#gdf_predicted_merc.plot(column='TROAD', cmap=cmap, norm=norm,
+#                       markersize=80, marker='^', edgecolor='black',
+#                       linewidth=1, alpha=0.8, ax=ax2, zorder=2)
+#
+## Add station IDs as labels
+#for idx, row in gdf_original_merc.iterrows():
+#    ax2.annotate(str(row['SID']), xy=(row.geometry.x, row.geometry.y),
+#                xytext=(3, 3), textcoords="offset points", fontsize=9)
+#
+#for idx, row in gdf_predicted_merc.iterrows():
+#    ax2.annotate(str(row['station_id']), xy=(row.geometry.x, row.geometry.y),
+#                xytext=(3, 3), textcoords="offset points", fontsize=9)
+#
+## Add colorbar and legend
+#cbar = fig2.colorbar(plt.cm.ScalarMappable(norm=norm, cmap=cmap), ax=ax2, pad=0.01)
+#cbar.set_label('Temperature (°C)', fontsize=14)
+#
+## Create legend handles using Line2D
+#orig_legend = mlines.Line2D([], [], color='black', marker='o', linestyle='None',
+#                          markersize=10, markeredgecolor='black', label='Original Stations')
+#pred_legend = mlines.Line2D([], [], color='black', marker='^', linestyle='None',
+#                          markersize=10, markeredgecolor='black', label='Predicted Stations')
+#ax2.legend(handles=[orig_legend, pred_legend], fontsize=12, loc='lower right')
+#
+#ax2.set_title('TROAD Values with Station IDs', fontsize=16)
+#ax2.set_axis_off()
+#
+#plt.tight_layout()
+#plt.savefig('troad_all_stations_with_ids.png', dpi=300, bbox_inches='tight')
+#plt.show()
 
-# Create a regular grid
-x_grid = np.linspace(xmin, xmax, grid_resolution)
-y_grid = np.linspace(ymin, ymax, grid_resolution)
-x_mesh, y_mesh = np.meshgrid(x_grid, y_grid)
 
-# Extract coordinates and values for interpolation
-x = gdf_combined.geometry.x.values
-y = gdf_combined.geometry.y.values
-z = gdf_combined['TROAD'].values
 
-# Interpolate temperature values
-from scipy.interpolate import griddata
-temp_grid = griddata((x, y), z, (x_mesh, y_mesh), method='cubic', fill_value=np.nan)
 
-# Plot the interpolated surface under the points
-ax.imshow(temp_grid, extent=[xmin, xmax, ymin, ymax], origin='lower',
-          cmap=cmap, norm=norm, alpha=0.5, zorder=1)
-
-plt.tight_layout()
-plt.savefig('troad_all_stations_map.png', dpi=300, bbox_inches='tight')
-plt.show()
 
 # Create a second visualization showing the difference between nearby points
 fig2, ax2 = plt.subplots(figsize=(15, 12))
+# ===== SUBPLOT 2: Kriging Uncertainty =====
+# Define colormap for uncertainty (variance)
+vmin_var = gdf_predicted['TROAD_variance'].min()
+vmax_var = gdf_predicted['TROAD_variance'].max()
+norm_var = Normalize(vmin=vmin_var, vmax=vmax_var)
+cmap_var = plt.cm.viridis  # Different colormap for uncertainty
 
-# Add basemap
+# Plot only predicted stations colored by uncertainty
+gdf_predicted.plot(column='TROAD_variance', cmap=cmap_var, norm=norm_var,
+                           markersize=80, marker='^', edgecolor='black',
+                           linewidth=1, alpha=0.8, ax=ax2, zorder=2)
+
+# Add basemap to second subplot
 ctx.add_basemap(ax2, source=ctx.providers.CartoDB.Positron, zorder=0)
 
-# Plot original stations
-gdf_original_merc = gdf_original.to_crs(epsg=3857)
-gdf_original_merc.plot(column='TROAD', cmap=cmap, norm=norm,
-                      markersize=80, marker='o', edgecolor='black',
-                      linewidth=1, alpha=0.8, ax=ax2, zorder=2)
+# Add colorbar for uncertainty
+cbar2 = fig.colorbar(plt.cm.ScalarMappable(norm=norm_var, cmap=cmap_var), ax=ax2, pad=0.01, shrink=0.8)
+#  cbar =  fig.colorbar(plt.cm.ScalarMappable(norm=norm, cmap=cmap), ax=ax, pad=0.01)
+cbar2.set_label('Kriging Variance (Uncertainty)', fontsize=12)
 
-# Plot predicted stations
-gdf_predicted_merc = gdf_predicted.to_crs(epsg=3857)
-gdf_predicted_merc.plot(column='TROAD', cmap=cmap, norm=norm,
-                       markersize=80, marker='^', edgecolor='black',
-                       linewidth=1, alpha=0.8, ax=ax2, zorder=2)
+# Create legend for uncertainty plot
+uncert_legend = mlines.Line2D([], [], color='black', marker='^', linestyle='None',
+                             markersize=10, markeredgecolor='black', label='Predicted Stations')
+ax2.legend(handles=[uncert_legend], fontsize=10, loc='lower right')
 
-# Add station IDs as labels
-for idx, row in gdf_original_merc.iterrows():
-    ax2.annotate(str(row['SID']), xy=(row.geometry.x, row.geometry.y),
-                xytext=(3, 3), textcoords="offset points", fontsize=9)
-
-for idx, row in gdf_predicted_merc.iterrows():
-    ax2.annotate(str(row['station_id']), xy=(row.geometry.x, row.geometry.y),
-                xytext=(3, 3), textcoords="offset points", fontsize=9)
-
-# Add colorbar and legend
-cbar = fig2.colorbar(plt.cm.ScalarMappable(norm=norm, cmap=cmap), ax=ax2, pad=0.01)
-cbar.set_label('Temperature (°C)', fontsize=14)
-
-# Create legend handles using Line2D
-orig_legend = mlines.Line2D([], [], color='black', marker='o', linestyle='None',
-                          markersize=10, markeredgecolor='black', label='Original Stations')
-pred_legend = mlines.Line2D([], [], color='black', marker='^', linestyle='None',
-                          markersize=10, markeredgecolor='black', label='Predicted Stations')
-ax2.legend(handles=[orig_legend, pred_legend], fontsize=12, loc='lower right')
-
-ax2.set_title('TROAD Values with Station IDs', fontsize=16)
+ax2.set_title('Kriging Uncertainty (Variance) - Predicted Stations', fontsize=14)
 ax2.set_axis_off()
 
 plt.tight_layout()
-plt.savefig('troad_all_stations_with_ids.png', dpi=300, bbox_inches='tight')
 plt.show()
